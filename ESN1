@@ -1,1 +1,52 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# --- 1. パラメータ設定 ---
+n_input = 1
+n_reservoir = 100
+n_output = 1
+spectral_radius = 0.9
+leak_rate = 0.3
+input_scaling = 1.0
+reservoir_density = 0.1
+
+# --- 2. リザーバーの重み初期化 ---
+np.random.seed(42)
+Win = (np.random.rand(n_reservoir, n_input) - 0.5) * input_scaling
+W = np.random.rand(n_reservoir, n_reservoir) - 0.5
+W[np.random.rand(*W.shape) > reservoir_density] = 0
+
+# スペクトル半径調整（Echo State Property）
+rho = max(abs(np.linalg.eigvals(W)))
+W *= spectral_radius / rho
+
+# --- 3. データ作成（例：sin波） ---
+T = 500
+t = np.linspace(0, 20*np.pi, T)
+u = np.sin(t).reshape(-1, 1)   # 入力
+d = np.sin(t + 0.1).reshape(-1, 1)  # 教師信号（少し先を予測）
+
+# --- 4. リザーバー状態の記録 ---
+X = np.zeros((T, n_reservoir))
+x = np.zeros((n_reservoir, 1))
+
+for t_idx in range(T):
+    u_t = u[t_idx].reshape(-1, 1)
+    x = (1 - leak_rate) * x + leak_rate * np.tanh(np.dot(Win, u_t) + np.dot(W, x))
+    X[t_idx, :] = x[:, 0]
+
+# --- 5. 出力層の学習（線形回帰） ---
+X_aug = np.hstack([X, u])  # 入力も加える
+Wout = np.linalg.pinv(X_aug) @ d  # 最小二乗法で学習
+
+# --- 6. 予測 ---
+y_pred = X_aug @ Wout
+
+# --- 7. 可視化 ---
+plt.figure(figsize=(10, 4))
+plt.plot(d, label="Target")
+plt.plot(y_pred, label="ESN Prediction", linestyle='--')
+plt.legend()
+plt.title("Echo State Network - Sine Wave Prediction")
+plt.show()
 
